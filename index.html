@@ -345,10 +345,10 @@ function renderCook(){
    <div class="tmr" id="tmr"></div>
    <h3>Got everything?</h3>${ings.map((i,n)=>`<label class="it${ck.i.includes(n)?' done':''}"><input type="checkbox" data-i="${n}"${ck.i.includes(n)?' checked':''}><span class="nm"><b class="num">${esc(fmtQty(i.qty,i.unit))}</b> ${esc(itemText(i))}</span></label>`).join('')}
    <h3>Method</h3>${steps.map((st,n)=>{const t=ck.t.find(t=>t.step===n&&!t.rung);return`<div class="cs${ck.s.includes(n)?' done':''}"><label><input type="checkbox" data-s="${n}"${ck.s.includes(n)?' checked':''}><span><b>${n+1}.</b> ${esc(st.text)}</span></label>
-     ${timed(st)?`<div class="tacts"><button class="btn p tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ '+st.minutes+' min timer'}</button><button class="btn tbtn" data-ios="${n}">iPhone timer</button></div>`:st.minutes?`<div class="faint" style="font-size:13px;margin:4px 0 0 34px">about ${st.minutes} min</div>`:''}</div>`}).join('')}
+     ${timed(st)?`<div class="tacts"><button class="btn p tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ '+st.minutes+' min timer'}</button><button class="btn tbtn" data-ios="${n}">iPhone timer</button><button class="btn tbtn" data-ping="${n}">Telegram ping</button></div>`:st.minutes?`<div class="faint" style="font-size:13px;margin:4px 0 0 34px">about ${st.minutes} min</div>`:''}</div>`}).join('')}
    ${done?'<h3>Done? Rate it</h3><div class="stars" id="ckstars">'+[1,2,3,4,5].map(n=>`<button data-r="${n}" aria-label="${n} of 5">☆</button>`).join('')+'</div>':''}
    <div class="acts"><button class="btn" id="ckchat">Talk me through it in the chat</button><button class="btn" id="ckreset">Start over</button></div>
-   <p class="faint" style="font-size:13px">The red timers ring in this page while it is open (the screen stays on). The iPhone timer rings even with the phone locked.</p>
+   <p class="faint" style="font-size:13px">The red timers ring in this page while it is open (the screen stays on). The iPhone timer and the Telegram ping ring even with the phone locked; the ping closes this page for a moment (your ticks stay).</p>
    <details class="sim"><summary><b>iPhone timer: make the shortcut once</b></summary><div class="in"><ol style="padding-left:20px;margin:0">
      <li>Open the <b>Shortcuts</b> app and tap <b>+</b>.</li><li>Add the action <b>Start Timer</b>.</li>
      <li>Tap its number (30), choose <b>Select Variable</b>, then <b>Shortcut Input</b>. Keep <b>minutes</b>.</li>
@@ -361,6 +361,9 @@ function renderCook(){
     ck.t=ck.t.filter(t=>t.step!==n).concat([{step:n,end:Date.now()+steps[n].minutes*60000}]);ckSave();renderCook();timers()});
   if($('ckstars'))$('ckstars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{localStorage.removeItem(ckKey(r.id));act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged')});
   $('cookv').querySelectorAll('[data-ios]').forEach(b=>b.onclick=()=>{const n=+b.dataset.ios;if(iosTimer.failed)localStorage.setItem('cb_ios','safari');localStorage.getItem('cb_ios')==='safari'?out(iphone(n,steps[n])):iosTimer(n,steps[n])});
+  // Telegram ping (owner, 2026-10-21): Ramsay messages the chat when the time is up; the page closes to hand it over
+  $('cookv').querySelectorAll('[data-ping]').forEach(b=>b.onclick=()=>{const n=+b.dataset.ping;
+    act({a:'tm',id:r.id,n,m:steps[n].minutes},`tm_${r.id}_${n}_${steps[n].minutes}`,'Ramsay pings you when it is time')});
   $('ckchat').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
   $('ckreset').onclick=()=>{ck.i=[];ck.s=[];ck.t=[];ckSave();renderCook();timers()};
   timers();
