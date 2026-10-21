@@ -24,7 +24,7 @@ h1{font-size:30px;line-height:1.1}h2{font-size:26px;line-height:1.15}h3{font-siz
 .search .x{border:0;background:none;width:40px;height:40px;color:var(--sub);font-size:18px}
 .chips{display:flex;gap:8px;overflow-x:auto;margin:12px -18px 0;padding:0 18px 4px;scrollbar-width:none}.chips::-webkit-scrollbar{display:none}
 .chip{flex:none;height:38px;border-radius:999px;border:1px solid var(--line);background:var(--card);padding:0 14px;font-size:14px;font-weight:500;white-space:nowrap}
-.chip.on{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chip.on{background-color:var(--ink);border-color:var(--ink);color:var(--paper)}
 select.chip{appearance:none;-webkit-appearance:none;padding-right:30px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 17px) 17px,calc(100% - 12px) 17px;background-size:5px 5px;background-repeat:no-repeat}
 .count{margin:18px 0 4px;font-size:13px;color:var(--sub)}
 .row{display:flex;gap:14px;align-items:center;padding:12px 0;border-top:1px solid var(--line);cursor:pointer}
@@ -77,6 +77,11 @@ label.it.done .nm{text-decoration:line-through;color:var(--faint)}.it .nm{flex:1
 .field{margin-top:16px}.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .field textarea,.field input,.field select{width:100%;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px;font-size:16px}
 .field small{color:var(--faint);font-size:12px}
+.tmr{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;background:var(--paper)}.tmr:empty{display:none}
+.tm{border:0;border-radius:999px;background:var(--acc);color:var(--acc-ink);min-height:40px;padding:0 14px;font-weight:600;font-size:14px}
+.cs{padding:10px 0;border-top:1px solid var(--line)}.cs label{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
+.cs input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--acc);flex:none}.cs.done span{color:var(--faint);text-decoration:line-through}
+.tbtn{margin:8px 0 0 34px;min-height:44px}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-size:14px;transition:.2s;z-index:30;max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .msg{padding:80px 24px;text-align:center}
@@ -94,6 +99,7 @@ label.it.done .nm{text-decoration:line-through;color:var(--faint)}.it .nm{flex:1
 <section class="view" id="detail" hidden></section>
 <section class="view" id="shop" hidden></section>
 <section class="view" id="kitchen" hidden></section>
+<section class="view" id="cookv" hidden></section>
 <div class="toast" id="toast" role="status"></div>
 <script>
 const tg=window.Telegram&&Telegram.WebApp&&Telegram.WebApp.initData!==undefined?Telegram.WebApp:null;
@@ -119,9 +125,9 @@ async function load(){
 
 // ---------- amounts (the same rules as chefbot/recipes.py)
 const FR=[[0,''],[.25,'¼'],[1/3,'⅓'],[.5,'½'],[2/3,'⅔'],[.75,'¾'],[1,'']];
-const BASE={kg:['g',1000],l:['ml',1000]};
+const BASE={kg:['g',1000],l:['ml',1000],piece:['',1]};
 function plural(u,q){if(['g','kg','ml','l','tsp','tbsp'].includes(u)||q==null||q<=1)return u;return u+(/(ch|sh)$/.test(u)?'es':'s')}
-function pluralItem(it){if(/[sx]$/.test(it)||!/[a-z]$/i.test(it))return it;if(/(ch|sh|o)$/.test(it))return it+'es';if(/[^aeiou]y$/.test(it))return it.slice(0,-1)+'ies';return it+'s'}
+function pluralItem(it){if(/[sx]$/.test(it)||!/[a-z]$/i.test(it))return it;if(/(ch|sh|tomato|potato)$/.test(it))return it+'es';if(/[^aeiou]y$/.test(it))return it.slice(0,-1)+'ies';return it+'s'}
 function fmtQty(q,u){
   if(q==null)return'';u=u||'';
   if(u==='g'||u==='ml'){if(q>=1000)return(+(q/1000).toFixed(1))+(u==='g'?' kg':' l');return Math.max(q>50?Math.round(q/5)*5:Math.round(q),1)+' '+u}
@@ -177,9 +183,9 @@ $('qx').onclick=()=>{$('q').value='';F.q='';$('qx').hidden=true;renderList()};
 $('kbtn').onclick=openKitchen;
 
 // ---------- views
-const VIEWS=['detail','shop','kitchen'];
+const VIEWS=['detail','shop','kitchen','cookv'];
 function show(v){VIEWS.forEach(x=>$(x).hidden=x!==v);$('home').hidden=!!v;if(tg){v?tg.BackButton.show():tg.BackButton.hide()}window.scrollTo(0,0);if(v)$(v).scrollTop=0;bar()}
-function home(){show(null);renderList()}
+function home(){leaveCook();show(null);renderList()}
 if(tg)tg.BackButton.onClick(home);
 const backBtn='<button class="back" data-home>‹ Cookbook</button>';
 function wireBack(el){el.querySelectorAll('[data-home]').forEach(b=>b.onclick=home)}
@@ -220,13 +226,13 @@ function renderDetail(){
   $('sm').onclick=()=>step(-1);$('sp').onclick=()=>step(1);
   $('pk').onclick=()=>{picks.has(r.id)?picks.delete(r.id):picks.set(r.id,curS);keep();renderDetail()};
   $('src').onclick=()=>out(r.url);
-  $('cook').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
+  $('cook').onclick=openCook;
   $('stars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged'));
   if($('sim'))$('sim').onclick=()=>act({a:'sim',id:r.id},`sim_${r.id}`,'Ramsay searches; the results come in the chat');
   $('detail').querySelectorAll('[data-out]').forEach(b=>b.onclick=()=>out(b.dataset.out));
 }
 
-// ---------- shopping list (c5): merged by aisle, scaled, ticks kept on this phone
+// ---------- shopping list (c5): merged by aisle, scaled, whole units, ticks kept on this phone
 const norm=s=>(s||'').toLowerCase().trim().replace(/\s+/g,' ');
 function merge(){
   const m={},staples=new Set((D.profile.staples||[]).map(norm));
@@ -236,40 +242,101 @@ function merge(){
       if(!e.recipes.includes(r.title))e.recipes.push(r.title)}}
   const out={};
   for(const e of Object.values(m).sort((a,b)=>a.item.toLowerCase().localeCompare(b.item.toLowerCase()))){
-    const amount=Object.entries(e.amounts).map(([u,q])=>fmtQty(q,u)).join(' + ');
-    const many=Object.keys(e.amounts).join()===''&&e.amounts['']>1;
-    const aisle=staples.has(norm(e.item))?'At home?':e.aisle;(out[aisle]=out[aisle]||[]).push({...e,amount,label:many?pluralItem(e.item):e.item})}
+    const aisle=staples.has(norm(e.item))?'At home?':e.aisle;(out[aisle]=out[aisle]||[]).push(e)}
   return AISLES.filter(a=>out[a]).map(a=>[a,out[a]]).concat(Object.keys(out).filter(a=>!AISLES.includes(a)).map(a=>[a,out[a]]));
 }
-function listText(groups){const t=[...picks.keys()].map(id=>byId[id]&&byId[id].title).filter(Boolean);
-  return['🛒 Shopping list: '+t.join(', ')].concat(groups.flatMap(([a,items])=>['',a,...items.map(x=>`${ticks.has(norm(x.item))?'☑':'☐'} ${[x.amount,x.label].filter(Boolean).join(' ')}`)])).join('\n')}
+// Whole units (owner, 2026-10-21), the same rules as recipes.buy(): ½ avocado -> 1 avocado; 240 g cottage cheese ->
+// 1 × the 300 g tub, 500 g -> 2 tubs; spoons and pinches -> one pack. The pack size is read from the product's name.
+const MULTI=/(\d+)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(kg|g|ml|cl|l)\b/i,PACKR=/(\d+(?:[.,]\d+)?)\s*(kg|g|ml|cl|l)\b/ig,PIECES=/(\d+)\s*(?:stück|stk\.?|st\.)/i;
+const TOB={kg:['g',1000],g:['g',1],l:['ml',1000],cl:['ml',10],ml:['ml',1]},COUNTED=['','clove','can','bunch','slice','piece'];
+function packSize(n){let m=n.match(MULTI);if(m){const [u,f]=TOB[m[3].toLowerCase()];return[+m[1]*parseFloat(m[2].replace(',','.'))*f,u]}
+  const all=[...n.matchAll(PACKR)];if(all.length){const x=all[all.length-1],[u,f]=TOB[x[2].toLowerCase()];return[parseFloat(x[1].replace(',','.'))*f,u]}
+  m=n.match(PIECES);return m?[+m[1],'']:null}
+function buy(item,amounts,p){
+  const A=Object.entries(amounts).filter(([u,q])=>q!=null),need=A.map(([u,q])=>fmtQty(q,u)).join(' + ');
+  const name=(p&&p.name)||'',pk=name?packSize(name):null;
+  if(pk&&amounts[pk[1]])return{main:`${Math.max(1,Math.ceil(amounts[pk[1]]/pk[0]-1e-9))} × ${name}`,need,named:true};
+  const whole=A.filter(([u,q])=>q&&COUNTED.includes(u)).map(([u,q])=>[u,Math.ceil(q-1e-9)]),weight=A.filter(([u,q])=>q&&(u==='g'||u==='ml'));
+  if(whole.length||weight.length){const many=whole.length===1&&whole[0][0]===''&&whole[0][1]>1&&!weight.length;
+    return{main:whole.concat(weight).map(([u,q])=>fmtQty(q,u)).join(' + ')+' '+(many?pluralItem(item):item),need,named:false}}
+  return{main:name?`1 × ${name}`:item,need,named:!!name}}
+const SHOPS=['REWE','EDEKA','Lidl'];
+let SHOP=SHOPS.includes(localStorage.getItem('cb_shop'))?localStorage.getItem('cb_shop'):'REWE';  // REWE unless they change it
+const products=()=>(D.products||{})[SHOP]||{};
+// For iOS Notes: plain lines, one item each. Selecting them and tapping the checklist button makes real checkboxes;
+// a typed "[ ]" or "☐" never turns into one (owner, 2026-10-21).
+function listText(){const t=[...picks.keys()].map(id=>byId[id]&&byId[id].title).filter(Boolean),P=products();
+  return['Shopping list: '+t.join(', ')].concat(merge().flatMap(([a,items])=>items.map(x=>buy(x.item,x.amounts,P[x.search_de]).main))).join('\n')}
 function openShop(){renderShop();show('shop')}
-let SHOP=localStorage.getItem('cb_shop')||'';  // which supermarket's products the list shows (checkin 18 e4)
 function renderShop(){
-  const groups=merge(),shop=SHOP||D.profile.shop||'REWE',P=(D.products||{})[shop]||{};
+  const groups=merge(),P=products();
   $('shop').innerHTML=`<div class="wrap">${backBtn}<h2>Shopping list</h2>
-   <div class="meta">${picks.size} recipe${picks.size===1?'':'s'}</div>
-   <div class="chips" style="margin-top:14px">${['REWE','EDEKA','Lidl'].map(x=>`<button class="chip${x===shop?' on':''}" data-shop="${x}" aria-pressed="${x===shop}">${x}</button>`).join('')}</div>
-   <p class="faint" style="font-size:13px;margin:6px 0 0">${shop==='REWE'?'Products from the REWE shop, with pictures.':`Ramsay's brand picks for ${esc(shop)}: no shop to check them against, so look for these names.`}</p>
+   <div class="meta">${picks.size} recipe${picks.size===1?'':'s'} · <label class="sub" for="shopsel">Products from</label>
+     <select id="shopsel" class="chip on" style="height:34px;margin-left:4px" aria-label="Supermarket">${SHOPS.map(x=>`<option${x===SHOP?' selected':''}>${x}</option>`).join('')}</select></div>
+   ${SHOP==='REWE'?'':`<p class="faint" style="font-size:13px;margin:8px 0 0">Ramsay's brand picks for ${esc(SHOP)}: there's no shop to check them against, so look for these names.</p>`}
    <h3>Recipes</h3>${[...picks].map(([id,s])=>{const r=byId[id];return r?`<div class="pk"><span class="t">${esc(r.title)}</span><div class="stepper"><button data-d="-1" data-id="${id}" aria-label="Fewer servings">−</button><b class="num">${servTxt(s||r.servings)}</b><button data-d="1" data-id="${id}" aria-label="More servings">+</button></div></div>`:''}).join('')}
-   ${groups.map(([a,items])=>`<div class="aisle"><h3>${esc(a)}</h3>${items.map(x=>{const k=norm(x.item),p=P[x.search_de];
-     return`<label class="it${ticks.has(k)?' done':''}"><input type="checkbox" data-k="${esc(k)}"${ticks.has(k)?' checked':''}><span class="nm"><b class="num">${esc(x.amount)}</b> ${esc(x.label)}<span class="rs">${esc(x.recipes.join(', '))}</span>
-     ${p&&p.name?`<span class="prod">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<span>${p.pick?'Pick: ':''}${esc(p.name)}${p.url?` · <a href="#" data-out="${esc(p.url)}">${esc(shop)}</a>`:''}</span></span>`:''}</span></label>`}).join('')}</div>`).join('')}
+   ${groups.map(([a,items])=>`<div class="aisle"><h3>${esc(a)}</h3>${items.map(x=>{const k=norm(x.item),p=P[x.search_de],b=buy(x.item,x.amounts,p);
+     const sub=[b.need&&!b.main.startsWith(b.need)?'need '+b.need+(b.named?' '+x.item:''):'',x.recipes.join(', ')].filter(Boolean).join(' · ');
+     return`<label class="it${ticks.has(k)?' done':''}"><input type="checkbox" data-k="${esc(k)}"${ticks.has(k)?' checked':''}><span class="nm"><b>${esc(b.main)}</b><span class="rs">${esc(sub)}</span>
+     ${p&&p.name&&(p.image||p.url||!b.named)?`<span class="prod">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<span>${b.named?'':(p.pick?'Pick: ':'')+esc(p.name)}${p.url?`${b.named?'':' · '}<a href="#" data-out="${esc(p.url)}">See it at ${esc(SHOP)}</a>`:''}</span></span>`:''}</span></label>`}).join('')}</div>`).join('')}
    <div class="acts"><button class="btn p" id="share">Share to Notes or Reminders</button></div>
+   <p class="faint" style="font-size:13px;margin:8px 0 0">In Notes: select the item lines and tap the checklist button once. Every line becomes a checkbox.</p>
    <div class="acts" style="margin-top:8px"><button class="btn" id="copy">Copy</button><button class="btn" id="send">Send to the chat</button></div>
    <div class="acts" style="margin-top:8px"><button class="btn" id="clr">Clear the list</button></div></div>`;
   wireBack($('shop'));
   $('shop').querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{c.checked?ticks.add(c.dataset.k):ticks.delete(c.dataset.k);keep();c.closest('label').classList.toggle('done',c.checked)});
   $('shop').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{const id=+b.dataset.id,r=byId[id];picks.set(id,Math.max(1,Math.round((picks.get(id)||r.servings||1)+(+b.dataset.d))));keep();renderShop()});
-  $('shop').querySelectorAll('[data-shop]').forEach(b=>b.onclick=()=>{SHOP=b.dataset.shop;localStorage.setItem('cb_shop',SHOP);renderShop()});
+  $('shopsel').onchange=e=>{SHOP=e.target.value;localStorage.setItem('cb_shop',SHOP);renderShop()};
   $('shop').querySelectorAll('[data-out]').forEach(a=>a.onclick=e=>{e.preventDefault();out(a.dataset.out)});
-  const text=()=>listText(merge());
   // c5: the iOS share sheet (Notes, Reminders) when the web view allows it; else Copy or the list as a message
   if(!navigator.share)$('share').hidden=true;
-  $('share').onclick=async()=>{try{await navigator.share({title:'Shopping list',text:text()})}catch(e){if(e.name!=='AbortError'){toast('Sharing is blocked here. Copy it, or send it to the chat.');$('share').hidden=true}}};
-  $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(text());toast('Copied. Paste it into Notes.')}catch(e){toast('Copy is blocked here. Send it to the chat instead.')}};
+  $('share').onclick=async()=>{try{await navigator.share({title:'Shopping list',text:listText()})}catch(e){if(e.name!=='AbortError'){toast('Sharing is blocked here. Copy it, or send it to the chat.');$('share').hidden=true}}};
+  $('copy').onclick=async()=>{try{await navigator.clipboard.writeText(listText());toast('Copied. Paste it into Notes.')}catch(e){toast('Copy is blocked here. Send it to the chat instead.')}};
   $('send').onclick=()=>{const r=[...picks].map(([id,s])=>[id,s||0]);act({a:'ls',r},'ls_'+r.map(([id,s])=>s?`${id}x${s}`:id).join('-'),'Ramsay sends the list')};
   $('clr').onclick=()=>{picks.clear();ticks.clear();keep();home()};
+}
+
+// ---------- cook mode (owner, 2026-10-21): ingredients and steps as checklists, one-tap timers, screen kept awake
+let ck=null,tick=null,wake=null,audio=null;
+const ckKey=id=>'cb_cook_'+id;
+function ckLoad(id){try{return JSON.parse(localStorage.getItem(ckKey(id)))||{i:[],s:[],t:[]}}catch(e){return{i:[],s:[],t:[]}}}
+function ckSave(){localStorage.setItem(ckKey(ck.id),JSON.stringify({i:ck.i,s:ck.s,t:ck.t}))}
+function openCook(){const r=cur;ck={id:r.id,...ckLoad(r.id)};renderCook();show('cookv');
+  try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{})}catch(e){}
+  clearInterval(tick);tick=setInterval(timers,1000)}
+function leaveCook(){clearInterval(tick);tick=null;try{wake&&wake.release()}catch(e){}wake=null;if(tg)try{tg.disableClosingConfirmation()}catch(e){}}
+const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
+function beep(){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();[0,.35,.7].forEach(d=>{const o=audio.createOscillator(),g=audio.createGain();o.frequency.value=880;g.gain.value=.25;o.connect(g);g.connect(audio.destination);o.start(audio.currentTime+d);o.stop(audio.currentTime+d+.22)})}catch(e){}}
+function timers(){
+  if(!ck)return;const now=Date.now();let ring=null;
+  ck.t.forEach(t=>{if(!t.rung&&now>=t.end){t.rung=true;ring=t}});
+  if(ring){ckSave();beep();if(tg){try{tg.HapticFeedback.notificationOccurred('success')}catch(e){}}
+    const msg=`Step ${ring.step+1} is done. ${(cur.steps[ring.step]||{}).text||''}`;if(tg&&tg.isVersionAtLeast&&tg.isVersionAtLeast('6.2'))tg.showAlert(msg);else toast(msg)}
+  const live=ck.t.filter(t=>!t.rung);
+  if(tg){try{live.length?tg.enableClosingConfirmation():tg.disableClosingConfirmation()}catch(e){}}
+  const el=$('tmr');if(el)el.innerHTML=live.map(t=>`<button class="tm" data-stop="${t.step}" aria-label="Stop the step ${t.step+1} timer">Step ${t.step+1} · <b class="num">${mmss(t.end-now)}</b> ×</button>`).join('');
+  if(el)el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>{ck.t=ck.t.filter(t=>t.step!==+b.dataset.stop);ckSave();timers();renderCook()});
+}
+function renderCook(){
+  const r=cur,ings=scale(r,curS),steps=r.steps||[],done=ck.s.length===steps.length&&steps.length;
+  $('cookv').innerHTML=`<div class="wrap"><button class="back" id="ckback">‹ ${esc(r.title)}</button>
+   <h2>Let's cook</h2><div class="meta">${esc(servTxt(curS))} · ${ck.i.length}/${ings.length} ingredients · ${ck.s.length}/${steps.length} steps</div>
+   <div class="tmr" id="tmr"></div>
+   <h3>Got everything?</h3>${ings.map((i,n)=>`<label class="it${ck.i.includes(n)?' done':''}"><input type="checkbox" data-i="${n}"${ck.i.includes(n)?' checked':''}><span class="nm"><b class="num">${esc(fmtQty(i.qty,i.unit))}</b> ${esc(itemText(i))}</span></label>`).join('')}
+   <h3>Method</h3>${steps.map((st,n)=>{const t=ck.t.find(t=>t.step===n&&!t.rung);return`<div class="cs${ck.s.includes(n)?' done':''}"><label><input type="checkbox" data-s="${n}"${ck.s.includes(n)?' checked':''}><span><b>${n+1}.</b> ${esc(st.text)}</span></label>
+     ${st.minutes?`<button class="btn tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ Start '+st.minutes+' min timer'}</button>`:''}</div>`}).join('')}
+   ${done?'<h3>Done? Rate it</h3><div class="stars" id="ckstars">'+[1,2,3,4,5].map(n=>`<button data-r="${n}" aria-label="${n} of 5">☆</button>`).join('')+'</div>':''}
+   <div class="acts"><button class="btn" id="ckchat">Talk me through it in the chat</button><button class="btn" id="ckreset">Start over</button></div>
+   <p class="faint" style="font-size:13px">Timers ring while this page is open; the screen stays on.</p></div>`;
+  $('ckback').onclick=()=>{leaveCook();renderDetail();show('detail')};
+  $('cookv').querySelectorAll('[data-i]').forEach(c=>c.onchange=()=>{const n=+c.dataset.i;ck.i=c.checked?[...ck.i,n]:ck.i.filter(x=>x!==n);ckSave();renderCook()});
+  $('cookv').querySelectorAll('[data-s]').forEach(c=>c.onchange=()=>{const n=+c.dataset.s;ck.s=c.checked?[...ck.s,n]:ck.s.filter(x=>x!==n);ckSave();renderCook()});
+  $('cookv').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const n=+b.dataset.t;try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();audio.resume()}catch(e){}
+    ck.t=ck.t.filter(t=>t.step!==n).concat([{step:n,end:Date.now()+steps[n].minutes*60000}]);ckSave();renderCook();timers()});
+  if($('ckstars'))$('ckstars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{localStorage.removeItem(ckKey(r.id));act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged')});
+  $('ckchat').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
+  $('ckreset').onclick=()=>{ck.i=[];ck.s=[];ck.t=[];ckSave();renderCook();timers()};
+  timers();
 }
 
 // ---------- Ramsay's memory (checkin 18 e3): what he keeps long term, a summary first, then the edit form
