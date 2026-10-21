@@ -326,6 +326,17 @@ function timers(){
 // is work, not a timer; owner, 2026-10-21).
 const WAIT=/\b(bak|roast|simmer|boil|poach|steam|braise|rest|chill|refrigerat|fridge|freez|marinat|prove|proof|rise|soak|steep|cool|cook(?!ed)|fry|sear|toast|grill|microwave|reduce|overnight)/i;
 const timed=st=>!!st.minutes&&(typeof st.timer==='boolean'?st.timer:WAIT.test(st.text||''));
+// One tap (owner, 2026-10-21): open the "Ramsay Timer" shortcut straight from Telegram. Whether Telegram's iOS web
+// view lets a page open shortcuts:// is not documented; if the page is still in front 2 s later, the link did
+// nothing: a second tap then goes through the Safari page (timer.html), and that choice is kept. No automatic
+// fallback: iOS's own "Open in Shortcuts?" prompt could look the same and start a second timer.
+const shortcut=m=>'shortcuts://run-shortcut?name='+encodeURIComponent('Ramsay Timer')+'&input=text&text='+m;
+function iosTimer(n,st){
+  let left=false;const gone=()=>{left=true};
+  window.addEventListener('blur',gone,{once:true});document.addEventListener('visibilitychange',gone,{once:true});
+  try{location.href=shortcut(st.minutes)}catch(e){}
+  setTimeout(()=>{if(!left&&!document.hidden){iosTimer.failed=true;toast("Telegram didn't open Shortcuts. Tap iPhone timer again to go through Safari.")}},2000);
+}
 const iphone=(n,st)=>new URL('timer.html',location.href.split('#')[0]).href.split('?')[0]+`?m=${st.minutes}&s=${encodeURIComponent((st.text||'').slice(0,60))}`;
 function renderCook(){
   const r=cur,ings=scale(r,curS),steps=r.steps||[],done=ck.s.length===steps.length&&steps.length;
@@ -337,14 +348,19 @@ function renderCook(){
      ${timed(st)?`<div class="tacts"><button class="btn p tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ '+st.minutes+' min timer'}</button><button class="btn tbtn" data-ios="${n}">iPhone timer</button></div>`:st.minutes?`<div class="faint" style="font-size:13px;margin:4px 0 0 34px">about ${st.minutes} min</div>`:''}</div>`}).join('')}
    ${done?'<h3>Done? Rate it</h3><div class="stars" id="ckstars">'+[1,2,3,4,5].map(n=>`<button data-r="${n}" aria-label="${n} of 5">☆</button>`).join('')+'</div>':''}
    <div class="acts"><button class="btn" id="ckchat">Talk me through it in the chat</button><button class="btn" id="ckreset">Start over</button></div>
-   <p class="faint" style="font-size:13px">The red timers ring in this page while it is open (the screen stays on). The iPhone timer rings even with the phone locked; it needs a one-time shortcut, explained when you tap it.</p></div>`;
+   <p class="faint" style="font-size:13px">The red timers ring in this page while it is open (the screen stays on). The iPhone timer rings even with the phone locked.</p>
+   <details class="sim"><summary><b>iPhone timer: make the shortcut once</b></summary><div class="in"><ol style="padding-left:20px;margin:0">
+     <li>Open the <b>Shortcuts</b> app and tap <b>+</b>.</li><li>Add the action <b>Start Timer</b>.</li>
+     <li>Tap its number (30), choose <b>Select Variable</b>, then <b>Shortcut Input</b>. Keep <b>minutes</b>.</li>
+     <li>Rename the shortcut to exactly <b>Ramsay Timer</b> and tap <b>Done</b>.</li>
+     <li>Tap <b>iPhone timer</b> on a step. iPhone asks once whether to allow it.</li></ol></div></details></div>`;
   $('ckback').onclick=()=>{leaveCook();renderDetail();show('detail')};
   $('cookv').querySelectorAll('[data-i]').forEach(c=>c.onchange=()=>{const n=+c.dataset.i;ck.i=c.checked?[...ck.i,n]:ck.i.filter(x=>x!==n);ckSave();renderCook()});
   $('cookv').querySelectorAll('[data-s]').forEach(c=>c.onchange=()=>{const n=+c.dataset.s;ck.s=c.checked?[...ck.s,n]:ck.s.filter(x=>x!==n);ckSave();renderCook()});
   $('cookv').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const n=+b.dataset.t;try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();audio.resume()}catch(e){}
     ck.t=ck.t.filter(t=>t.step!==n).concat([{step:n,end:Date.now()+steps[n].minutes*60000}]);ckSave();renderCook();timers()});
   if($('ckstars'))$('ckstars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{localStorage.removeItem(ckKey(r.id));act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged')});
-  $('cookv').querySelectorAll('[data-ios]').forEach(b=>b.onclick=()=>out(iphone(+b.dataset.ios,steps[+b.dataset.ios])));
+  $('cookv').querySelectorAll('[data-ios]').forEach(b=>b.onclick=()=>{const n=+b.dataset.ios;if(iosTimer.failed)localStorage.setItem('cb_ios','safari');localStorage.getItem('cb_ios')==='safari'?out(iphone(n,steps[n])):iosTimer(n,steps[n])});
   $('ckchat').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
   $('ckreset').onclick=()=>{ck.i=[];ck.s=[];ck.t=[];ckSave();renderCook();timers()};
   timers();
