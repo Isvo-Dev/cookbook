@@ -77,11 +77,15 @@ label.it.done .nm{text-decoration:line-through;color:var(--faint)}.it .nm{flex:1
 .field{margin-top:16px}.field label{display:block;font-size:13px;font-weight:600;margin-bottom:6px}
 .field textarea,.field input,.field select{width:100%;border:1px solid var(--line);background:var(--card);border-radius:12px;padding:12px;font-size:16px}
 .field small{color:var(--faint);font-size:12px}
-.tmr{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;gap:8px;padding:8px 0;background:var(--paper)}.tmr:empty{display:none}
+.tmr{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:8px;padding:8px 0;background:var(--paper)}
+.tcard{display:flex;align-items:center;gap:12px;background:var(--ink);color:var(--paper);border-radius:16px;padding:12px 16px}
+.tcard .l{flex:1;min-width:0}.tcard small{display:block;font-size:13px;opacity:.75;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tcard .big{display:block;font:600 46px/1.05 var(--sans);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.tcard button{border:1px solid #ffffff55;background:none;color:inherit;border-radius:999px;min-height:44px;padding:0 16px;font-weight:600}.tmr:empty{display:none}
 .tm{border:0;border-radius:999px;background:var(--acc);color:var(--acc-ink);min-height:40px;padding:0 14px;font-weight:600;font-size:14px}
 .cs{padding:10px 0;border-top:1px solid var(--line)}.cs label{display:flex;gap:12px;align-items:flex-start;cursor:pointer}
 .cs input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--acc);flex:none}.cs.done span{color:var(--faint);text-decoration:line-through}
-.tbtn{margin:8px 0 0 34px;min-height:44px}
+.tacts{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 0 34px}.tbtn{min-height:48px;font-size:16px}
 .toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom));transform:translate(-50%,20px);opacity:0;background:var(--ink);color:var(--paper);padding:10px 16px;border-radius:12px;font-size:14px;transition:.2s;z-index:30;max-width:90vw}
 .toast.on{opacity:1;transform:translate(-50%,0)}
 .msg{padding:80px 24px;text-align:center}
@@ -305,7 +309,8 @@ function openCook(){const r=cur;ck={id:r.id,...ckLoad(r.id)};renderCook();show('
   try{navigator.wakeLock&&navigator.wakeLock.request('screen').then(w=>wake=w).catch(()=>{})}catch(e){}
   clearInterval(tick);tick=setInterval(timers,1000)}
 function leaveCook(){clearInterval(tick);tick=null;try{wake&&wake.release()}catch(e){}wake=null;if(tg)try{tg.disableClosingConfirmation()}catch(e){}}
-const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000));return`${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`};
+const mmss=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),p=n=>String(n).padStart(2,'0');
+  return h?`${h}:${p(Math.floor(s/60)%60)}:${p(s%60)}`:`${Math.floor(s/60)}:${p(s%60)}`};
 function beep(){try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();[0,.35,.7].forEach(d=>{const o=audio.createOscillator(),g=audio.createGain();o.frequency.value=880;g.gain.value=.25;o.connect(g);g.connect(audio.destination);o.start(audio.currentTime+d);o.stop(audio.currentTime+d+.22)})}catch(e){}}
 function timers(){
   if(!ck)return;const now=Date.now();let ring=null;
@@ -314,9 +319,14 @@ function timers(){
     const msg=`Step ${ring.step+1} is done. ${(cur.steps[ring.step]||{}).text||''}`;if(tg&&tg.isVersionAtLeast&&tg.isVersionAtLeast('6.2'))tg.showAlert(msg);else toast(msg)}
   const live=ck.t.filter(t=>!t.rung);
   if(tg){try{live.length?tg.enableClosingConfirmation():tg.disableClosingConfirmation()}catch(e){}}
-  const el=$('tmr');if(el)el.innerHTML=live.map(t=>`<button class="tm" data-stop="${t.step}" aria-label="Stop the step ${t.step+1} timer">Step ${t.step+1} · <b class="num">${mmss(t.end-now)}</b> ×</button>`).join('');
+  const el=$('tmr');if(el)el.innerHTML=live.map(t=>`<div class="tcard" role="timer"><div class="l"><small>Step ${t.step+1} · ${esc((cur.steps[t.step]||{}).text||'')}</small><b class="big">${mmss(t.end-now)}</b></div><button data-stop="${t.step}" aria-label="Stop the step ${t.step+1} timer">Stop</button></div>`).join('');
   if(el)el.querySelectorAll('[data-stop]').forEach(b=>b.onclick=()=>{ck.t=ck.t.filter(t=>t.step!==+b.dataset.stop);ckSave();timers();renderCook()});
 }
+// Only waiting gets a timer: the card's own flag, or for older cards the verbs that mean waiting (whisking 3 min
+// is work, not a timer; owner, 2026-10-21).
+const WAIT=/\b(bak|roast|simmer|boil|poach|steam|braise|rest|chill|refrigerat|fridge|freez|marinat|prove|proof|rise|soak|steep|cool|cook(?!ed)|fry|sear|toast|grill|microwave|reduce|overnight)/i;
+const timed=st=>!!st.minutes&&(typeof st.timer==='boolean'?st.timer:WAIT.test(st.text||''));
+const iphone=(n,st)=>new URL('timer.html',location.href.split('#')[0]).href.split('?')[0]+`?m=${st.minutes}&s=${encodeURIComponent((st.text||'').slice(0,60))}`;
 function renderCook(){
   const r=cur,ings=scale(r,curS),steps=r.steps||[],done=ck.s.length===steps.length&&steps.length;
   $('cookv').innerHTML=`<div class="wrap"><button class="back" id="ckback">‹ ${esc(r.title)}</button>
@@ -324,16 +334,17 @@ function renderCook(){
    <div class="tmr" id="tmr"></div>
    <h3>Got everything?</h3>${ings.map((i,n)=>`<label class="it${ck.i.includes(n)?' done':''}"><input type="checkbox" data-i="${n}"${ck.i.includes(n)?' checked':''}><span class="nm"><b class="num">${esc(fmtQty(i.qty,i.unit))}</b> ${esc(itemText(i))}</span></label>`).join('')}
    <h3>Method</h3>${steps.map((st,n)=>{const t=ck.t.find(t=>t.step===n&&!t.rung);return`<div class="cs${ck.s.includes(n)?' done':''}"><label><input type="checkbox" data-s="${n}"${ck.s.includes(n)?' checked':''}><span><b>${n+1}.</b> ${esc(st.text)}</span></label>
-     ${st.minutes?`<button class="btn tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ Start '+st.minutes+' min timer'}</button>`:''}</div>`}).join('')}
+     ${timed(st)?`<div class="tacts"><button class="btn p tbtn" data-t="${n}"${t?' disabled':''}>${t?'Timer running':'⏱ '+st.minutes+' min timer'}</button><button class="btn tbtn" data-ios="${n}">iPhone timer</button></div>`:st.minutes?`<div class="faint" style="font-size:13px;margin:4px 0 0 34px">about ${st.minutes} min</div>`:''}</div>`}).join('')}
    ${done?'<h3>Done? Rate it</h3><div class="stars" id="ckstars">'+[1,2,3,4,5].map(n=>`<button data-r="${n}" aria-label="${n} of 5">☆</button>`).join('')+'</div>':''}
    <div class="acts"><button class="btn" id="ckchat">Talk me through it in the chat</button><button class="btn" id="ckreset">Start over</button></div>
-   <p class="faint" style="font-size:13px">Timers ring while this page is open; the screen stays on.</p></div>`;
+   <p class="faint" style="font-size:13px">The red timers ring in this page while it is open (the screen stays on). The iPhone timer rings even with the phone locked; it needs a one-time shortcut, explained when you tap it.</p></div>`;
   $('ckback').onclick=()=>{leaveCook();renderDetail();show('detail')};
   $('cookv').querySelectorAll('[data-i]').forEach(c=>c.onchange=()=>{const n=+c.dataset.i;ck.i=c.checked?[...ck.i,n]:ck.i.filter(x=>x!==n);ckSave();renderCook()});
   $('cookv').querySelectorAll('[data-s]').forEach(c=>c.onchange=()=>{const n=+c.dataset.s;ck.s=c.checked?[...ck.s,n]:ck.s.filter(x=>x!==n);ckSave();renderCook()});
   $('cookv').querySelectorAll('[data-t]').forEach(b=>b.onclick=()=>{const n=+b.dataset.t;try{audio=audio||new(window.AudioContext||window.webkitAudioContext)();audio.resume()}catch(e){}
     ck.t=ck.t.filter(t=>t.step!==n).concat([{step:n,end:Date.now()+steps[n].minutes*60000}]);ckSave();renderCook();timers()});
   if($('ckstars'))$('ckstars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>{localStorage.removeItem(ckKey(r.id));act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged')});
+  $('cookv').querySelectorAll('[data-ios]').forEach(b=>b.onclick=()=>out(iphone(+b.dataset.ios,steps[+b.dataset.ios])));
   $('ckchat').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
   $('ckreset').onclick=()=>{ck.i=[];ck.s=[];ck.t=[];ckSave();renderCook();timers()};
   timers();

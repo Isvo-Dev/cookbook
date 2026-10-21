@@ -1,0 +1,30 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>Ramsay's timer</title>
+<!-- The iPhone Clock timer from cook mode (owner, 2026-10-21). A web page cannot set the Clock timer itself, and a
+     Telegram Mini App can only open https links; this public page (no data) runs the "Ramsay Timer" shortcut, which
+     starts the real timer: it rings with the phone locked. Opened in Safari: /cookbook/timer.html?m=12&s=Bake -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&family=Fraunces:opsz,wght@9..144,600&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f6f1e7;color:#1f1b16;font:400 16px/1.5 Inter,system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:520px;margin:0 auto;padding:32px 20px calc(32px + env(safe-area-inset-bottom))}
+h1{font:600 30px/1.15 Fraunces,Georgia,serif;margin:0 0 6px}.sub{color:#685f55}
+a.btn{display:flex;align-items:center;justify-content:center;min-height:56px;border-radius:14px;background:#c4432a;color:#fff;font-weight:600;font-size:18px;text-decoration:none;margin:24px 0}
+details{background:#fffdf8;border:1px solid #e6ddcd;border-radius:14px;padding:4px 16px}summary{padding:12px 0;font-weight:600;cursor:pointer}
+ol{padding-left:20px;margin:0 0 14px}li{margin:6px 0}code{background:#e6ddcd;border-radius:6px;padding:1px 6px}
+</style></head><body><div class="wrap">
+<h1 id="h">iPhone timer</h1><p class="sub" id="what"></p>
+<a class="btn" id="go" href="#">Start the iPhone timer</a>
+<details id="setup"><summary>First time? Make the shortcut once (1 minute)</summary><ol>
+<li>Open the <b>Shortcuts</b> app and tap <b>+</b>.</li>
+<li>Search the actions for <b>Start Timer</b> and add it.</li>
+<li>Tap the number in it (30), then <b>Select Variable</b> and pick <b>Shortcut Input</b>. Leave the unit on <b>minutes</b>.</li>
+<li>Tap the name at the top, rename it to exactly <code>Ramsay Timer</code>, and tap <b>Done</b>.</li>
+<li>Come back here and tap the red button. iPhone asks once whether Ramsay may run it: allow.</li></ol></details>
+</div><script>
+const q=new URLSearchParams(location.search),m=Math.max(1,Math.min(1440,parseInt(q.get('m'),10)||0)),label=(q.get('s')||'').slice(0,80);
+document.getElementById('h').textContent=m?`${m} min timer`:'iPhone timer';
+document.getElementById('what').textContent=label?`For: ${label}`:'';
+const u='shortcuts://run-shortcut?name='+encodeURIComponent('Ramsay Timer')+'&input=text&text='+m;
+const go=document.getElementById('go');go.href=u;
+if(m&&!sessionStorage.getItem('ran'+location.search)){sessionStorage.setItem('ran'+location.search,'1');location.href=u}
+</script></body></html>
