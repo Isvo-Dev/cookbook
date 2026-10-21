@@ -84,7 +84,7 @@ label.it.done .nm{text-decoration:line-through;color:var(--faint)}.it .nm{flex:1
 </style></head><body>
 <div id="msg" class="msg"><h2>Opening the cookbook…</h2></div>
 <main id="home" class="wrap" hidden>
- <div class="top"><div class="grow"><h1>The cookbook</h1><div class="sub" id="hsub"></div></div><button class="iconbtn" id="kbtn">Kitchen</button></div>
+ <div class="top"><div class="grow"><h1>The cookbook</h1><div class="sub" id="hsub"></div></div><button class="iconbtn" id="kbtn">Memory</button></div>
  <div class="search"><input id="q" type="search" placeholder="Search dishes, ingredients, creators" aria-label="Search" autocomplete="off"><button class="x" id="qx" aria-label="Clear search" hidden>×</button></div>
  <div class="chips" id="chips"></div>
  <div class="count" id="count"></div>
@@ -210,8 +210,10 @@ function renderDetail(){
    <div class="acts"><button class="btn p" id="cook">Cook this with Ramsay</button><button class="btn" id="pk">${picked?'On the shopping list ✓':'Add to shopping list'}</button></div>
    <div class="acts" style="margin-top:8px"><button class="btn" id="src">${src}</button></div>
    <h3>Cooked it?</h3><div class="stars" id="stars">${[1,2,3,4,5].map(n=>`<button data-r="${n}" aria-label="${n} of 5">${n<=(r.rating||0)?'★':'☆'}</button>`).join('')}</div>
-   ${r.similar&&r.similar.length?`<h3>Look-alikes online</h3>`+r.similar.map(x=>`<details class="sim"><summary><div class="t">${esc(x.title)}</div><div class="meta">${esc(host(x.url))} · ${esc([x.total_minutes&&x.total_minutes+' min',servTxt(x.servings)].filter(Boolean).join(' · '))} · <span class="conf ${confCls(x.confidence)}">${pct(x.confidence)} sure</span></div></summary>
-     <div class="in"><ul class="ing">${ingList(scale(x,null))}</ul><h3>Method</h3><ol class="steps">${stepList(x.steps||[])}</ol><div class="acts"><button class="btn" data-out="${esc(x.url)}">Open on ${esc(host(x.url))}</button></div></div></details>`).join(''):''}
+   <h3>Look-alikes online</h3>${r.similar&&r.similar.length?r.similar.map(x=>`<details class="sim"><summary><div class="t">${esc(x.title)}</div><div class="meta">${esc(host(x.url))} · ${esc([x.total_minutes&&x.total_minutes+' min',servTxt(x.servings)].filter(Boolean).join(' · '))} · <span class="conf ${confCls(x.confidence)}">${pct(x.confidence)} sure</span></div></summary>
+     <div class="in"><ul class="ing">${ingList(scale(x,null))}</ul><h3>Method</h3><ol class="steps">${stepList(x.steps||[])}</ol><div class="acts"><button class="btn" data-out="${esc(x.url)}">Open on ${esc(host(x.url))}</button></div></div></details>`).join('')
+     :r.sim==='done'?'<p class="sub">No close look-alikes on the trusted sites. An original.</p>'
+     :`<p class="sub">Near-identical recipes from Serious Eats, BBC Good Food, RecipeTin Eats, Bon Appétit and Chefkoch, as cards like this one.</p><div class="acts"><button class="btn" id="sim"${r.sim==='asked'?' disabled':''}>${r.sim==='asked'?'Ramsay is looking…':'Find look-alikes'}</button></div>`}
    ${r.note?`<p class="faint" style="font-size:13px;margin-top:24px">${esc(r.note)}</p>`:''}</div>`;
   wireBack($('detail'));
   const step=d=>{const base=r.servings||1,n=Math.max(1,Math.round((curS||base)+d));curS=n;if(picks.has(r.id)){picks.set(r.id,n);keep()}renderDetail()};
@@ -220,6 +222,7 @@ function renderDetail(){
   $('src').onclick=()=>out(r.url);
   $('cook').onclick=()=>act({a:'cook',id:r.id,s:curS},`cook_${r.id}_${curS}`,'Ramsay starts in the chat');
   $('stars').querySelectorAll('[data-r]').forEach(b=>b.onclick=()=>act({a:'ck',id:r.id,r:+b.dataset.r},`ck_${r.id}_${b.dataset.r}`,'Logged'));
+  if($('sim'))$('sim').onclick=()=>act({a:'sim',id:r.id},`sim_${r.id}`,'Ramsay searches; the results come in the chat');
   $('detail').querySelectorAll('[data-out]').forEach(b=>b.onclick=()=>out(b.dataset.out));
 }
 
@@ -241,20 +244,24 @@ function merge(){
 function listText(groups){const t=[...picks.keys()].map(id=>byId[id]&&byId[id].title).filter(Boolean);
   return['🛒 Shopping list: '+t.join(', ')].concat(groups.flatMap(([a,items])=>['',a,...items.map(x=>`${ticks.has(norm(x.item))?'☑':'☐'} ${[x.amount,x.label].filter(Boolean).join(' ')}`)])).join('\n')}
 function openShop(){renderShop();show('shop')}
+let SHOP=localStorage.getItem('cb_shop')||'';  // which supermarket's products the list shows (checkin 18 e4)
 function renderShop(){
-  const groups=merge(),shop=D.profile.shop,P=D.products||{};
+  const groups=merge(),shop=SHOP||D.profile.shop||'REWE',P=(D.products||{})[shop]||{};
   $('shop').innerHTML=`<div class="wrap">${backBtn}<h2>Shopping list</h2>
-   <div class="meta">${picks.size} recipe${picks.size===1?'':'s'}${shop?` · products from ${esc(shop)}`:''}</div>
+   <div class="meta">${picks.size} recipe${picks.size===1?'':'s'}</div>
+   <div class="chips" style="margin-top:14px">${['REWE','EDEKA','Lidl'].map(x=>`<button class="chip${x===shop?' on':''}" data-shop="${x}" aria-pressed="${x===shop}">${x}</button>`).join('')}</div>
+   <p class="faint" style="font-size:13px;margin:6px 0 0">${shop==='REWE'?'Products from the REWE shop, with pictures.':`Ramsay's brand picks for ${esc(shop)}: no shop to check them against, so look for these names.`}</p>
    <h3>Recipes</h3>${[...picks].map(([id,s])=>{const r=byId[id];return r?`<div class="pk"><span class="t">${esc(r.title)}</span><div class="stepper"><button data-d="-1" data-id="${id}" aria-label="Fewer servings">−</button><b class="num">${servTxt(s||r.servings)}</b><button data-d="1" data-id="${id}" aria-label="More servings">+</button></div></div>`:''}).join('')}
    ${groups.map(([a,items])=>`<div class="aisle"><h3>${esc(a)}</h3>${items.map(x=>{const k=norm(x.item),p=P[x.search_de];
      return`<label class="it${ticks.has(k)?' done':''}"><input type="checkbox" data-k="${esc(k)}"${ticks.has(k)?' checked':''}><span class="nm"><b class="num">${esc(x.amount)}</b> ${esc(x.label)}<span class="rs">${esc(x.recipes.join(', '))}</span>
-     ${p&&p.name?`<span class="prod">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<span>${esc(p.name)}${p.url?` · <a href="#" data-out="${esc(p.url)}">${esc(shop)}</a>`:''}</span></span>`:''}</span></label>`}).join('')}</div>`).join('')}
+     ${p&&p.name?`<span class="prod">${p.image?`<img src="${esc(p.image)}" alt="" loading="lazy">`:''}<span>${p.pick?'Pick: ':''}${esc(p.name)}${p.url?` · <a href="#" data-out="${esc(p.url)}">${esc(shop)}</a>`:''}</span></span>`:''}</span></label>`}).join('')}</div>`).join('')}
    <div class="acts"><button class="btn p" id="share">Share to Notes or Reminders</button></div>
    <div class="acts" style="margin-top:8px"><button class="btn" id="copy">Copy</button><button class="btn" id="send">Send to the chat</button></div>
    <div class="acts" style="margin-top:8px"><button class="btn" id="clr">Clear the list</button></div></div>`;
   wireBack($('shop'));
   $('shop').querySelectorAll('[data-k]').forEach(c=>c.onchange=()=>{c.checked?ticks.add(c.dataset.k):ticks.delete(c.dataset.k);keep();c.closest('label').classList.toggle('done',c.checked)});
   $('shop').querySelectorAll('[data-d]').forEach(b=>b.onclick=()=>{const id=+b.dataset.id,r=byId[id];picks.set(id,Math.max(1,Math.round((picks.get(id)||r.servings||1)+(+b.dataset.d))));keep();renderShop()});
+  $('shop').querySelectorAll('[data-shop]').forEach(b=>b.onclick=()=>{SHOP=b.dataset.shop;localStorage.setItem('cb_shop',SHOP);renderShop()});
   $('shop').querySelectorAll('[data-out]').forEach(a=>a.onclick=e=>{e.preventDefault();out(a.dataset.out)});
   const text=()=>listText(merge());
   // c5: the iOS share sheet (Notes, Reminders) when the web view allows it; else Copy or the list as a message
@@ -265,21 +272,37 @@ function renderShop(){
   $('clr').onclick=()=>{picks.clear();ticks.clear();keep();home()};
 }
 
-// ---------- kitchen profile (memory, long term) and cooked history
+// ---------- Ramsay's memory (checkin 18 e3): what he keeps long term, a summary first, then the edit form
 function openKitchen(){renderKitchen();show('kitchen')}
+function memorySummary(){
+  const p=D.profile,cooked=D.cooked||[],fact=(label,v)=>v&&v.length?`<div class="pk"><span class="t">${label}</span><span class="sub" style="text-align:right">${esc(Array.isArray(v)?v.join(', '):v)}</span></div>`:'';
+  const counts={};cooked.forEach(c=>{const r=byId[c.id];if(r&&r.cuisine)counts[r.cuisine]=(counts[r.cuisine]||0)+1});
+  const cuisines=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c,n])=>`${c} (${n})`);
+  const favs=R.filter(r=>r.rating>=4||r.cooked>=2).sort((a,b)=>(b.rating||0)-(a.rating||0)||b.cooked-a.cooked).slice(0,5);
+  const facts=fact('Allergies',p.allergies)+fact('Dislikes',p.dislikes)+fact('Diet',p.diet)+fact('Equipment',p.equipment)+fact('Always at home',p.staples)+fact('Supermarket',p.shop)+fact('Cuisines you cook most',cuisines);
+  return`<h3>About your kitchen</h3>${facts||'<p class="sub">Nothing yet. Tell Ramsay what you like, hate or own, or fill it in below.</p>'}
+   <h3>Things Ramsay noted</h3>${(p.notes||[]).map((n,i)=>`<div class="pk"><span class="t" style="font-weight:400">${esc(n)}</span><button class="iconbtn" data-forget="${i}" aria-label="Forget: ${esc(n)}">Forget</button></div>`).join('')||'<p class="sub">No notes yet. He writes down what matters as you talk ("likes it very spicy").</p>'}
+   <h3>Favourites</h3>${favs.map(r=>`<div class="pk" data-open="${r.id}" style="cursor:pointer"><span class="t">${esc(r.title)}</span><span class="sub num">${r.rating?r.rating+'★ · ':''}cooked ${r.cooked}×</span></div>`).join('')||'<p class="sub">Rate what you cook (4★ and up) and it shows here.</p>'}
+   <h3>Cooked lately</h3>${cooked.slice(0,10).map(c=>`<div class="pk"><span class="t">${esc(c.title)}</span><span class="sub num">${c.rating?c.rating+'★ · ':''}${esc(c.at)}</span></div>`).join('')||'<p class="sub">Nothing yet. Tell Ramsay when you cook something, or rate it on its card.</p>'}
+   <p class="faint" style="font-size:13px;margin-top:18px">Short term: Ramsay forgets the conversation after 12 quiet hours (or /clear) and a cooking session after 12 hours. Everything on this page stays.</p>`;
+}
+function savePf(p){if(!canSend()){toast('Open the cookbook from the 🍳 Cookbook button to change this.');return}
+  tg.sendData(JSON.stringify({a:'pf',p}))}
 function renderKitchen(){
   const p=D.profile,ta=(k,label,hint)=>`<div class="field"><label for="f_${k}">${label}</label><textarea id="f_${k}" rows="2">${esc((p[k]||[]).join(', '))}</textarea><small>${hint}</small></div>`;
-  $('kitchen').innerHTML=`<div class="wrap">${backBtn}<h2>Your kitchen</h2><p class="sub">Ramsay reads this before every answer.</p>
+  $('kitchen').innerHTML=`<div class="wrap">${backBtn}<h2>What Ramsay remembers</h2><p class="sub">He reads all of this before every answer.</p>
+   ${memorySummary()}
+   <h3>Change it</h3>
    ${ta('allergies','Allergies','Never suggested. Comma separated.')}${ta('dislikes','Dislikes','e.g. blue cheese, fennel')}
    <div class="field"><label for="f_diet">Diet</label><input id="f_diet" value="${esc(p.diet||'')}" placeholder="e.g. mostly vegetarian on weekdays"></div>
    ${ta('equipment','Equipment','e.g. air fryer, cast-iron pan, stand mixer')}${ta('staples','Always at home','These go under "At home?" on the shopping list.')}
-   <div class="field"><label for="f_shop">Supermarket</label><select id="f_shop">${['','REWE','EDEKA','Lidl'].map(s=>`<option value="${s}"${p.shop===s?' selected':''}>${s||'Not set'}</option>`).join('')}</select><small>REWE shows the product to buy with a picture. EDEKA and Lidl are not matched yet.</small></div>
-   <div class="acts"><button class="btn p" id="save">Save</button></div>
-   <h3>Cooked lately</h3>${(D.cooked||[]).map(c=>`<div class="pk"><span class="t">${esc(c.title)}</span><span class="sub num">${c.rating?c.rating+'★ · ':''}${esc(c.at)}</span></div>`).join('')||'<p class="sub">Nothing yet. Tell Ramsay when you cook something, or rate it on its card.</p>'}</div>`;
+   <div class="field"><label for="f_shop">Supermarket</label><select id="f_shop">${['','REWE','EDEKA','Lidl'].map(s=>`<option value="${s}"${p.shop===s?' selected':''}>${s||'Not set'}</option>`).join('')}</select><small>The shopping list opens on this shop. REWE shows its products with pictures; EDEKA and Lidl show Ramsay's brand picks.</small></div>
+   <div class="acts"><button class="btn p" id="save">Save</button></div></div>`;
   wireBack($('kitchen'));
   const list=k=>$('f_'+k).value.split(',').map(s=>s.trim()).filter(Boolean);
-  $('save').onclick=()=>{if(!canSend()){toast('Open the cookbook from the 🍳 Cookbook button to save this.');return}
-    tg.sendData(JSON.stringify({a:'pf',p:{allergies:list('allergies'),dislikes:list('dislikes'),equipment:list('equipment'),staples:list('staples'),diet:$('f_diet').value,shop:$('f_shop').value}}))};
+  $('save').onclick=()=>savePf({allergies:list('allergies'),dislikes:list('dislikes'),equipment:list('equipment'),staples:list('staples'),diet:$('f_diet').value,shop:$('f_shop').value});
+  $('kitchen').querySelectorAll('[data-forget]').forEach(b=>b.onclick=()=>savePf({notes:(p.notes||[]).filter((_,i)=>i!==+b.dataset.forget)}));
+  $('kitchen').querySelectorAll('[data-open]').forEach(el=>el.onclick=()=>openDetail(+el.dataset.open));
 }
 
 // A static page cannot write: Ramsay does it. From the keyboard button, sendData hands it over (Telegram closes the
